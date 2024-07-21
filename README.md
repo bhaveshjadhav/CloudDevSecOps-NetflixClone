@@ -269,44 +269,44 @@ Now, you have installed the Dependency-Check plugin, configured the tool, and ad
 
 ```groovy
 
-pipeline{
+pipeline {
     agent any
-    tools{
+    tools {
         jdk 'jdk17'
         nodejs 'node16'
     }
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonar-scanner'
     }
     stages {
-        stage('clean workspace'){
-            steps{
+        stage('clean workspace') {
+            steps {
                 cleanWs()
             }
         }
-        stage('Checkout from Git'){
-            steps{
-                git branch: 'main', url: 'https://github.com/bhaveshjadhav/CloudDevSecOps-NetflixClone.git'
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/N4si/DevSecOps-Project.git'
             }
         }
-        stage("Sonarqube Analysis "){
-            steps{
+        stage('Sonarqube Analysis') {
+            steps {
                 withSonarQubeEnv('sonar-server') {
                     sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Netflix \
                     -Dsonar.projectKey=Netflix '''
                 }
             }
         }
-        stage("quality gate"){
-           steps {
+        stage('quality gate') {
+            steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
                 }
-            } 
+            }
         }
         stage('Install Dependencies') {
             steps {
-                sh "npm install"
+                sh 'npm install'
             }
         }
         stage('OWASP FS SCAN') {
@@ -317,29 +317,40 @@ pipeline{
         }
         stage('TRIVY FS SCAN') {
             steps {
-                sh "trivy fs . > trivyfs.txt"
+                sh 'trivy fs . > trivyfs.txt'
             }
         }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker build --build-arg TMDB_V3_API_KEY=<yourapikey> -t netflix ."  #replace api key
-                       sh "docker tag netflix bhavesh053/netflix:latest "
-                       sh "docker push bhavesh053/netflix:latest "   
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {   
+                        sh 'docker build --build-arg TMDB_V3_API_KEY=7eb72b2eda9c0d28c5f4b8df0c7bee43 -t netflix .'
+                        sh 'docker tag netflix bhavesh053/netflix:latest'
+                        sh 'docker push bhavesh053/netflix:latest'
                     }
                 }
             }
         }
-        stage("TRIVY"){
-            steps{
-                sh "trivy image bhavesh053/netflix:latest > trivyimage.txt" 
+        stage('TRIVY') {
+            steps {
+                sh 'trivy image bhavesh053/netflix:latest > trivyimage.txt'
             }
         }
-        stage('Deploy to container'){
-            steps{
+        stage('Deploy to container') {
+            steps {
                 sh 'docker run -d --name netflix -p 8081:80 bhavesh053/netflix:latest'
             }
+        }
+    }
+    post {
+        always {
+            emailext attachLog: true,
+                subject: "${currentBuild.result}",
+                body: """Project: ${env.JOB_NAME}<br/>
+                         Build Number: ${env.BUILD_NUMBER}<br/>
+                         URL: ${env.BUILD_URL}<br/>""",
+                to: 'bhaveshjadhav050@gmail.com',
+                attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
         }
     }
 }
